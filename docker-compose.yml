@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  message-broker:
+    build: ./message-broker
+    container_name: message-broker
+    restart: always
+    ports:
+      - "6379:6379"
+
+  api-service:
+    build: ./api-service
+    container_name: api-service
+    restart: always
+    depends_on:
+      - message-broker
+    secrets:
+      - api_token
+
+secrets:
+  api_token:
+    file: /run/secrets/api_token
