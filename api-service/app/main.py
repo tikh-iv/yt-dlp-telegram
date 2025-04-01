@@ -3,27 +3,24 @@ from pydantic import BaseModel
 import redis
 import json
 import uuid
-import os
 from dotenv import load_dotenv
-from __future__ import annotations
 
 load_dotenv()
-API_TOKEN = os.getenv("API_TOKEN")
+
+# GET api token
+def get_api_token():
+    try:
+        with open("/run/secrets/api_token", "r") as secret_file:
+            return secret_file.read().strip()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading secret: {e}")
+
+API_TOKEN = get_api_token()
 
 app = FastAPI()
 
 # Connect to Redis
 redis_client = redis.Redis(host="redis", port=6379, db=0)
-
-# GET api token
-def get_api_token():
-    try:
-        with open("/run/secrets/api_token", "r") as f:
-            return f.read().strip()
-    except FileNotFoundError:
-        return None
-
-API_TOKEN = get_api_token()
 
 
 class DownloadRequest(BaseModel):
@@ -37,7 +34,7 @@ async def verify_token(request: Request):
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
-@app.post("/download/", dependencies=[Depends(verify_token)])
+@app.post("/download", dependencies=[Depends(verify_token)])
 async def request_download(request: DownloadRequest):
     """ Get link and starts to download """""
     task_id = str(uuid.uuid4())
