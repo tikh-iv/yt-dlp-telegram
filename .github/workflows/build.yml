@@ -23,11 +23,13 @@ jobs:
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Build and push Docker images
+      env:
+        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       run: |
         docker compose build
-        docker tag api-service ${{ secrets.DOCKERHUB_USERNAME }}/video-downloader-api:latest
-        docker tag download-service ${{ secrets.DOCKERHUB_USERNAME }}/video-downloader-download:latest
-        docker tag telegram-service ${{ secrets.DOCKERHUB_USERNAME }}/video-downloader-telegram:latest
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/video-downloader-api:latest
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/video-downloader-download:latest
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/video-downloader-telegram:latest
+        docker tag api-service $DOCKERHUB_USERNAME/video-downloader-api:latest
+        docker tag download-service $DOCKERHUB_USERNAME/video-downloader-download:latest
+        docker tag telegram-service $DOCKERHUB_USERNAME/video-downloader-telegram:latest
+        docker push $DOCKERHUB_USERNAME/video-downloader-api:latest
+        docker push $DOCKERHUB_USERNAME/video-downloader-download:latest
+        docker push $DOCKERHUB_USERNAME/video-downloader-telegram:latest
