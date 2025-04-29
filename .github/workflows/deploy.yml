@@ -20,7 +20,7 @@ jobs:
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER }} >> ~/.ssh/known_hosts
+        ssh-keyscan -p 8822 ${{ secrets.SERVER }} >> ~/.ssh/known_hosts
 
     - name: Deploy stack
       run: |
