@@ -1,6 +1,6 @@
 services:
   api-service:
-    image: ${DOCKERHUB_USERNAME}/video-downloader-api:latest
+    image: eevarn/video-downloader-api:latest
     build:
       context: ./api-service
       dockerfile: Dockerfile
@@ -18,7 +18,7 @@ services:
         condition: on-failure
 
   download-service:
-    image: ${DOCKERHUB_USERNAME}/video-downloader-download:latest
+    image: eevarn/video-downloader-download:latest
     build:
       context: ./download-service
       dockerfile: Dockerfile
@@ -34,7 +34,7 @@ services:
         condition: on-failure
 
   telegram-service:
-    image: ${DOCKERHUB_USERNAME}/video-downloader-telegram:latest
+    image: eevarn/video-downloader-telegram:latest
     build:
       context: ./telegram-service
       dockerfile: Dockerfile
