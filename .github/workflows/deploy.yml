@@ -15,46 +15,35 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install SSH key
+    - name: SSH Setup
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        ssh-keyscan -p 8822 -H ${{ secrets.SERVER }} >> ~/.ssh/known_hosts
+        ssh-keyscan -p 8822 ${{ secrets.SERVER }} >> ~/.ssh/known_hosts
 
-    - name: Initialize Docker Swarm and deploy
+    - name: Deploy to Swarm
       run: |
-        # Copy docker-compose.yml 
-        scp -P 8822 -i ~/.ssh/deploy_key docker-compose.yml ${{ secrets.SERVERUSER }}@${{ secrets.SERVER }}:/home/${{ secrets.SERVERUSER }}/video-downloader/docker-compose.yml
-        
-        # Check and init Swarm
-        ssh -p 8822 -i ~/.ssh/deploy_key ${{ secrets.SERVERUSER }}@${{ secrets.SERVER }} << 'EOF'
+        ssh -T -p 8822 -i ~/.ssh/deploy_key ${{ secrets.SERVERUSER }}@${{ secrets.SERVER }} <<EOF
+          set -e
           mkdir -p /home/${{ secrets.SERVERUSER }}/video-downloader
           cd /home/${{ secrets.SERVERUSER }}/video-downloader
-          export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
           
-          # Check if Swarm is active
-          if [ "$(docker info --format '{{.Swarm.LocalNodeState}}')" != "active" ]; then
-            echo "Initializing Docker Swarm..."
-            docker swarm init
-          else
-            echo "Docker Swarm already initialized."
+          # Update docker-compose
+          cat <<DOCKER_COMPOSE > docker-compose.yml
+          $(cat docker-compose.yml)
+          DOCKER_COMPOSE
+          
+          # Initialize Swarm if needed
+          if ! docker node ls &>/dev/null; then
+            docker swarm init --advertise-addr 127.0.0.1
           fi
-        
-        # Remove old secrets
-        ssh -p 8822 -i ~/.ssh/deploy_key ${{ secrets.SERVERUSER }}@${{ secrets.SERVER }} << 'EOF'
-          mkdir -p /home/${{ secrets.SERVERUSER }}/video-downloader
-          cd /home/${{ secrets.SERVERUSER }}/video-downloader
-          export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
           
-          # Remove old secrets 
-          docker secret rm api_token || true
-          docker secret rm telegram_token || true
+          # Create/update secrets
+          echo "${{ secrets.API_TOKEN }}" | docker secret create api_token - 2>/dev/null || true
+          echo "${{ secrets.TELEGRAM_TOKEN }}" | docker secret create telegram_token - 2>/dev/null || true
           
-          # Create new secrrets
-          echo "${{ secrets.API_TOKEN }}" | docker secret create api_token -
-          echo "${{ secrets.TELEGRAM_TOKEN }}" | docker secret create telegram_token -
-          
-          # Deploy stack
-          docker stack deploy -c docker-compose.yml video-downloader
+          # Pull and deploy
+          docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          docker stack deploy -c docker-compose.yml --with-registry-auth video-downloader
         EOF
