@@ -45,7 +45,3 @@ jobs:
             ${{ env.DOCKERHUB_USERNAME }}/video-downloader-telegram:latest
           push: ${{ github.event_name == 'push' }}
           load: true
-
-      - name: Start containers
-        run: |
-          docker-compose -p video-downloader up -d
