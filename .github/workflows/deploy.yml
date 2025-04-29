@@ -24,7 +24,7 @@ jobs:
 
     - name: Deploy stack
       run: |
-        ssh -tt -p ${{ secrets.SSH_PORT }} -i ~/.ssh/deploy_key \
+        ssh -tt -p 8822 -i ~/.ssh/deploy_key \
           ${{ secrets.SERVERUSER }}@${{ secrets.SERVER }} \
           /bin/bash <<-'ENDSSH'
             # Setup environment
