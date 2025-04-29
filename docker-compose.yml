@@ -1,6 +1,9 @@
 services:
   api-service:
     image: ${DOCKERHUB_USERNAME}/video-downloader-api:latest
+    build:
+      context: ./api-service
+      dockerfile: Dockerfile
     ports:
       - "8888:80"
     environment:
@@ -16,6 +19,9 @@ services:
 
   download-service:
     image: ${DOCKERHUB_USERNAME}/video-downloader-download:latest
+    build:
+      context: ./download-service
+      dockerfile: Dockerfile
     environment:
       - REDIS_HOST=redis
     volumes:
@@ -29,6 +35,9 @@ services:
 
   telegram-service:
     image: ${DOCKERHUB_USERNAME}/video-downloader-telegram:latest
+    build:
+      context: ./telegram-service
+      dockerfile: Dockerfile
     environment:
       - REDIS_HOST=redis
     volumes:
