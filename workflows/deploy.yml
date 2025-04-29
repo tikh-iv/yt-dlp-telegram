@@ -1,0 +1,60 @@
+name: CD - Deploy to Docker Swarm
+
+on:
+  workflow_run:
+    workflows: ["CI - Build and Push Docker Images"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -p 8822 -H ${{ secrets.SERVER }} >> ~/.ssh/known_hosts
+
+    - name: Initialize Docker Swarm and deploy
+      run: |
+        # Copy docker-compose.yml 
+        scp -P 8822 -i ~/.ssh/deploy_key docker-compose.yml ${{ secrets.SERVERUSER }}@${{ secrets.SERVER }}:/home/${{ secrets.SERVERUSER }}/video-downloader/docker-compose.yml
+        
+        # Check and init Swarm
+        ssh -p 8822 -i ~/.ssh/deploy_key ${{ secrets.SERVERUSER }}@${{ secrets.SERVER }} << 'EOF'
+          mkdir -p /home/${{ secrets.SERVERUSER }}/video-downloader
+          cd /home/${{ secrets.SERVERUSER }}/video-downloader
+          export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+          
+          # Check if Swarm is active
+          if [ "$(docker info --format '{{.Swarm.LocalNodeState}}')" != "active" ]; then
+            echo "Initializing Docker Swarm..."
+            docker swarm init
+          else
+            echo "Docker Swarm already initialized."
+          fi
+        
+        # Remove old secrets
+        ssh -p 8822 -i ~/.ssh/deploy_key ${{ secrets.SERVERUSER }}@${{ secrets.SERVER }} << 'EOF'
+          mkdir -p /home/${{ secrets.SERVERUSER }}/video-downloader
+          cd /home/${{ secrets.SERVERUSER }}/video-downloader
+          export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+          
+          # Remove old secrets 
+          docker secret rm api_token || true
+          docker secret rm telegram_token || true
+          
+          # Create new secrrets
+          echo "${{ secrets.API_TOKEN }}" | docker secret create api_token -
+          echo "${{ secrets.TELEGRAM_TOKEN }}" | docker secret create telegram_token -
+          
+          # Deploy stack
+          docker stack deploy -c docker-compose.yml video-downloader
+        EOF
