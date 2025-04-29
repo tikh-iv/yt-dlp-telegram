@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: CI - Build and Push Docker Images
 
 on: [push]
 
