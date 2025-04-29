@@ -14,3 +14,25 @@ services:
     image: "redis:latest"
     ports:
       - "6379:6379"
+
+  download-service:
+    build: ./download-service
+    environment:
+      - REDIS_HOST=redis
+    volumes:
+      - download_data:/app/downloads
+    depends_on:
+      - redis
+
+  telegram-service:
+    build: ./telegram-service
+    environment:
+      - REDIS_HOST=redis
+    volumes:
+      - download_data:/app/downloads
+      - ./secrets/telegram_token.txt:/run/secrets/telegram_token
+    depends_on:
+      - redis
+
+volumes:
+  download_data:

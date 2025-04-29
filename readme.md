@@ -10,7 +10,7 @@ Make a request
 curl -X POST http://localhost:8000/download \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer SECRET" \
-  -d '{"url": "http://example.com/file_to_download","chat_id":"123"}'
+  -d '{"url": "https://x.com/PicturesFoIder/status/1917127296164507778","chat_id":"293754044"}'
 ```
 
 Check the Redis
