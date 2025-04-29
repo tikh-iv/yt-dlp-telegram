@@ -24,7 +24,7 @@ jobs:
 
     - name: Build and push Docker images
       run: |
-        docker-compose build
+        docker compose build
         docker tag api-service ${{ secrets.DOCKERHUB_USERNAME }}/video-downloader-api:latest
         docker tag download-service ${{ secrets.DOCKERHUB_USERNAME }}/video-downloader-download:latest
         docker tag telegram-service ${{ secrets.DOCKERHUB_USERNAME }}/video-downloader-telegram:latest
