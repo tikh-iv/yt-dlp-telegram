@@ -15,35 +15,37 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: SSH Setup
+    - name: Setup SSH
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        ssh-keyscan -p 8822 ${{ secrets.SERVER }} >> ~/.ssh/known_hosts
+        ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SERVER }} >> ~/.ssh/known_hosts
 
-    - name: Deploy to Swarm
+    - name: Deploy stack
       run: |
-        ssh -T -p 8822 -i ~/.ssh/deploy_key ${{ secrets.SERVERUSER }}@${{ secrets.SERVER }} <<EOF
-          set -e
-          mkdir -p /home/${{ secrets.SERVERUSER }}/video-downloader
-          cd /home/${{ secrets.SERVERUSER }}/video-downloader
-          
-          # Update docker-compose
-          cat <<DOCKER_COMPOSE > docker-compose.yml
-          $(cat docker-compose.yml)
-          DOCKER_COMPOSE
-          
-          # Initialize Swarm if needed
-          if ! docker node ls &>/dev/null; then
-            docker swarm init --advertise-addr 127.0.0.1
-          fi
-          
-          # Create/update secrets
-          echo "${{ secrets.API_TOKEN }}" | docker secret create api_token - 2>/dev/null || true
-          echo "${{ secrets.TELEGRAM_TOKEN }}" | docker secret create telegram_token - 2>/dev/null || true
-          
-          # Pull and deploy
-          docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          docker stack deploy -c docker-compose.yml --with-registry-auth video-downloader
-        EOF
+        ssh -tt -p ${{ secrets.SSH_PORT }} -i ~/.ssh/deploy_key \
+          ${{ secrets.SERVERUSER }}@${{ secrets.SERVER }} \
+          /bin/bash <<-'ENDSSH'
+            # Setup environment
+            export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+            APP_DIR="/home/${{ secrets.SERVERUSER }}/video-downloader"
+            mkdir -p $APP_DIR
+            
+            # Copy compose file
+            docker-compose.yml > $APP_DIR/docker-compose.yml
+            
+            # Initialize Swarm if needed
+            if ! docker node ls &>/dev/null; then
+              docker swarm init
+            fi
+
+            # Create secrets
+            echo "${{ secrets.API_TOKEN }}" | docker secret create api_token - 2>/dev/null || true
+            echo "${{ secrets.TELEGRAM_TOKEN }}" | docker secret create telegram_token - 2>/dev/null || true
+
+            # Deploy stack
+            docker stack deploy -c $APP_DIR/docker-compose.yml video-downloader --with-registry-auth
+        ENDSSH
+      env:
+        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
