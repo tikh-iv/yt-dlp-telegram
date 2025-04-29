@@ -1,70 +1,32 @@
 services:
   api-service:
     image: eevarn/video-downloader-api:latest
-    build:
-      context: ./api-service
-      dockerfile: Dockerfile
     ports:
-      - "8888:8000"
+      - "8000:8000"
     environment:
-      - REDIS_HOST=redis
+      - API_TOKEN=${API_TOKEN}
     secrets:
       - api_token
-    depends_on:
-      - redis
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
 
   download-service:
     image: eevarn/video-downloader-download:latest
-    build:
-      context: ./download-service
-      dockerfile: Dockerfile
     environment:
-      - REDIS_HOST=redis
-    volumes:
-      - download_data:/app/downloads
+      - API_URL=http://api-service:8000
     depends_on:
-      - redis
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
+      - api-service
 
   telegram-service:
     image: eevarn/video-downloader-telegram:latest
-    build:
-      context: ./telegram-service
-      dockerfile: Dockerfile
     environment:
-      - REDIS_HOST=redis
-    volumes:
-      - download_data:/app/downloads
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - API_URL=http://api-service:8000
+    depends_on:
+      - api-service
     secrets:
       - telegram_token
-    depends_on:
-      - redis
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-
-  redis:
-    image: redis:latest
-    ports:
-      - "6379:6379"
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
 
 secrets:
   api_token:
     external: true
   telegram_token:
     external: true
-
-volumes:
-  download_data:
