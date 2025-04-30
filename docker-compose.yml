@@ -9,6 +9,12 @@ services:
       - api_token
     networks:
       - downloader
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 60s
 
   download-service:
     image: eevarn/video-downloader-download:latest
@@ -20,6 +26,12 @@ services:
       - download_data:/app/downloads
     networks:
       - downloader
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 60s
 
   telegram-service:
     image: eevarn/video-downloader-telegram:latest
@@ -34,6 +46,12 @@ services:
       - download_data:/app/downloads
     networks:
       - downloader
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 60s
 
   redis:
     image: redis:alpine
