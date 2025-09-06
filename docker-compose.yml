@@ -81,3 +81,5 @@ networks:
   downloader:
     driver: overlay
     attachable: true
+  my-secure-network:
+    driver: bridge
