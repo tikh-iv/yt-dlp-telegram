@@ -1,4 +1,3 @@
 redis
 requests
 fastapi
-PySocks>=1.7.1
