@@ -14,7 +14,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 DOWNLOAD_DIR = "downloads"
-MAX_FILE_SIZE_MB = 50
+MAX_FILE_SIZE_MB = 100
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024  # 50 MB в байтах
 
 # Подключение к Redis
