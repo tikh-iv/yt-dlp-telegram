@@ -29,7 +29,7 @@ services:
       - download_data:/app/downloads
     networks:
       - downloader
-      - my-secure-network
+      - shadowsocks-network
     deploy:
       restart_policy:
         condition: on-failure
@@ -82,5 +82,6 @@ networks:
   downloader:
     driver: overlay
     attachable: true
-  my-secure-network:
-    driver: bridge
+  shadowsocks-network:
+    external:
+      name: shadowsocks-network
