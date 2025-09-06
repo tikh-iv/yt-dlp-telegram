@@ -38,6 +38,8 @@ services:
     environment:
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - API_URL=http://api-service:8000
+      - http_proxy=socks5://shadowsocks-client:1080
+      - https_proxy=socks5://shadowsocks-client:1080
     depends_on:
       - api-service
     secrets:
@@ -46,6 +48,7 @@ services:
       - download_data:/app/downloads
     networks:
       - downloader
+      - my-secure-network
     deploy:
       restart_policy:
         condition: on-failure
