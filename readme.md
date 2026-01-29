@@ -13,7 +13,7 @@ curl -X POST http://localhost:8000/download \
   -d '{"url": "https://x.com/PicturesFoIder/status/1917127296164507778","chat_id":"293754044"}'
 ```
 
-
+ 
 Check the Redis
 ```shell
 docker ps
