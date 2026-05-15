@@ -29,7 +29,7 @@ def get_formats(url: str) -> tuple[List[Dict], Optional[float]]:
     """
     try:
         result = subprocess.run(
-            ["yt-dlp", "--dump-json", url],
+            ["yt-dlp", "--impersonate", "chrome", "--dump-json", url],
             capture_output=True,
             text=True,
             check=True
@@ -120,7 +120,7 @@ def download_video(url: str, output_template: str, format_id: str) -> str:
     Download video.
     """
     subprocess.run(
-        ["yt-dlp", "-f", format_id, url, "-o", output_template],
+        ["yt-dlp", "--impersonate", "chrome", "-f", format_id, url, "-o", output_template],
         check=True
     )
     for file in os.listdir(DOWNLOAD_DIR):

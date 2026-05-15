@@ -19,13 +19,10 @@ services:
   download-service:
     image: eevarn/video-downloader-download:latest
     environment:
-      - API_URL=http://api-service:8000
-    depends_on:
-      - api-service
+      - REDIS_HOST=127.0.0.1
+    network_mode: host
     volumes:
       - download_data:/app/downloads
-    networks:
-      - downloader
     deploy:
       restart_policy:
         condition: on-failure
