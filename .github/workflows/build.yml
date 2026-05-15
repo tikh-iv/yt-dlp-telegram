@@ -1,6 +1,10 @@
 name: CI - Build and Push Docker Images
 
-on: [push]
+on:
+  push:
+  schedule:
+    # Every Monday at 04:00 UTC — picks up latest yt-dlp automatically
+    - cron: '0 4 * * 1'
 
 env:
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -25,8 +29,8 @@ jobs:
           context: ./api-service
           tags: |
             ${{ env.DOCKERHUB_USERNAME }}/video-downloader-api:latest
-          push: ${{ github.event_name == 'push' }}
-          load: true
+          push: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
+          load: ${{ github.event_name != 'schedule' }}
 
       - name: Build and push Download service
         uses: docker/build-push-action@v4
@@ -34,8 +38,9 @@ jobs:
           context: ./download-service
           tags: |
             ${{ env.DOCKERHUB_USERNAME }}/video-downloader-download:latest
-          push: ${{ github.event_name == 'push' }}
-          load: true
+          push: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
+          no-cache: true
+          load: ${{ github.event_name != 'schedule' }}
 
       - name: Build and push Telegram service
         uses: docker/build-push-action@v4
@@ -43,5 +48,5 @@ jobs:
           context: ./telegram-service
           tags: |
             ${{ env.DOCKERHUB_USERNAME }}/video-downloader-telegram:latest
-          push: ${{ github.event_name == 'push' }}
-          load: true
+          push: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
+          load: ${{ github.event_name != 'schedule' }}
