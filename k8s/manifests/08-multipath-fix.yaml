@@ -1,0 +1,57 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: multipath-config
+  namespace: longhorn-system
+data:
+  multipath.conf: |
+    blacklist {
+      devnode "^sd[a-z0-9]+"
+    }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: multipath-fixer
+  namespace: longhorn-system
+spec:
+  selector:
+    matchLabels:
+      app: multipath-fixer
+  template:
+    metadata:
+      labels:
+        app: multipath-fixer
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: fixer
+        image: busybox:1.36
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            # Добавляем blacklist, если его нет
+            if ! grep -q "devnode \"^sd[a-z0-9]+\"" /etc/multipath.conf; then
+              cat /config/multipath.conf >> /etc/multipath.conf
+            fi
+            # Reload multipathd
+            nsenter --mount=/proc/1/ns/mnt -- systemctl reload multipathd
+            sleep infinity
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: host-etc
+          mountPath: /etc
+        - name: config
+          mountPath: /config
+      volumes:
+      - name: host-etc
+        hostPath:
+          path: /etc
+      - name: config
+        configMap:
+          name: multipath-config
+

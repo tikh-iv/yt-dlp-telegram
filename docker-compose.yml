@@ -18,11 +18,10 @@ services:
 
   download-service:
     image: eevarn/video-downloader-download:latest
-    environment:
-      - REDIS_HOST=127.0.0.1
-    network_mode: host
     volumes:
       - download_data:/app/downloads
+    networks:
+      - downloader
     deploy:
       restart_policy:
         condition: on-failure

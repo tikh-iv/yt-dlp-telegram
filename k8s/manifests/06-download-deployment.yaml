@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: download-service
+  namespace: video-downloader
+  labels:
+    app: download-service
+spec:
+  replicas: 3  # можно много — это worker'ы
+  selector:
+    matchLabels:
+      app: download-service
+  template:
+    metadata:
+      labels:
+        app: download-service
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: downloader
+        image: eevarn/video-downloader-download:latest
+        env:
+        - name: REDIS_HOST
+          value: "redis"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"   # yt-dlp может жрать CPU
+        volumeMounts:
+        - name: downloads
+          mountPath: /app/downloads
+      volumes:
+      - name: downloads
+        persistentVolumeClaim:
+          claimName: downloads-pvc

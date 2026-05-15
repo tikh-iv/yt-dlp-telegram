@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegram-service
+  namespace: video-downloader
+  labels:
+    app: telegram-service
+spec:
+  replicas: 1  # обычно хватает одного
+  selector:
+    matchLabels:
+      app: telegram-service
+  template:
+    metadata:
+      labels:
+        app: telegram-service
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: telegram
+        image: eevarn/video-downloader-telegram:latest
+        env:
+        - name: REDIS_HOST
+          value: "redis"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: downloads
+          mountPath: /app/downloads
+        - name: secrets
+          mountPath: /run/secrets
+          readOnly: true
+      volumes:
+      - name: downloads
+        persistentVolumeClaim:
+          claimName: downloads-pvc
+      - name: secrets
+        secret:
+          secretName: app-secrets
