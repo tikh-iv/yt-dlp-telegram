@@ -19,7 +19,7 @@ services:
   download-service:
     image: eevarn/video-downloader-download:latest
     environment:
-      - REDIS_HOST=127.0.0.1
+      - REDIS_HOST=192.168.100.2
     depends_on:
       - api-service
     volumes:
