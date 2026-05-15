@@ -20,16 +20,12 @@ services:
     image: eevarn/video-downloader-download:latest
     environment:
       - API_URL=http://api-service:8000
-      - HTTP_PROXY=socks5://shadowsocks-client:1080
-      - HTTPS_PROXY=socks5://shadowsocks-client:1080
-      - ALL_PROXY=socks5://shadowsocks-client:1080
     depends_on:
       - api-service
     volumes:
       - download_data:/app/downloads
     networks:
       - downloader
-      - shadowsocks-network
     deploy:
       restart_policy:
         condition: on-failure
@@ -99,6 +95,3 @@ networks:
   downloader:
     driver: overlay
     attachable: true
-  shadowsocks-network:
-    external:
-      name: shadowsocks-network
