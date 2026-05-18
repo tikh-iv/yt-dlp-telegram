@@ -18,6 +18,8 @@ services:
 
   download-service:
     image: eevarn/video-downloader-download:latest
+    cap_add:
+      - NET_ADMIN
     environment:
       - REDIS_HOST=redis
     volumes:
