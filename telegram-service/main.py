@@ -16,6 +16,14 @@ logger = logging.getLogger(__name__)
 # Подключение к Redis
 redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=6379, db=0)
 
+# SOCKS5 прокси для Telegram API (только если задан VLESS_URL)
+_session = requests.Session()
+if os.getenv("VLESS_URL"):
+    _session.proxies = {"https": "socks5://127.0.0.1:1080"}
+    logger.info("VLESS proxy enabled (socks5://127.0.0.1:1080)")
+else:
+    logger.info("VLESS_URL not set, running without proxy")
+
 
 # Чтение токена Telegram из секрета
 def get_telegram_token() -> str:
@@ -32,9 +40,8 @@ TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 
 def send_message(chat_id: str, text: str) -> None:
-    """Отправить текстовое сообщение в Telegram."""
     try:
-        response = requests.post(
+        response = _session.post(
             f"{TELEGRAM_API_URL}/sendMessage",
             json={"chat_id": chat_id, "text": text}
         )
@@ -46,10 +53,9 @@ def send_message(chat_id: str, text: str) -> None:
 
 
 def send_video(chat_id: str, video_path: str) -> None:
-    """Отправить видео в Telegram."""
     try:
         with open(video_path, "rb") as video_file:
-            response = requests.post(
+            response = _session.post(
                 f"{TELEGRAM_API_URL}/sendVideo",
                 data={"chat_id": chat_id},
                 files={"video": video_file}

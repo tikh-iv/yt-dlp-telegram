@@ -53,6 +53,7 @@ jobs:
 
               # Pull and deploy
               export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+              export VLESS_URL="${{ secrets.VLESS_URL }}"
               docker login -u $DOCKERHUB_USERNAME -p "${{ secrets.DOCKERHUB_TOKEN }}"
               docker stack deploy -c docker-compose.yml --with-registry-auth video-downloader
           EOF
