@@ -24,7 +24,8 @@ services:
       - download_data:/app/downloads
     networks:
       - downloader
-      - internet
+    sysctls:
+      - net.ipv4.tcp_mtu_probing=1
     deploy:
       restart_policy:
         condition: on-failure
@@ -97,6 +98,4 @@ networks:
     attachable: true
     driver_opts:
       com.docker.network.driver.mtu: "1450"
-  internet:
-    external: true
-    name: downloader-internet
+      encrypted: "false"
