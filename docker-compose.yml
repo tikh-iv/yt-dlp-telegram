@@ -20,6 +20,7 @@ services:
     image: eevarn/video-downloader-download:latest
     environment:
       - REDIS_HOST=redis
+      - OPENSSL_CONF=/etc/ssl/openssl-reduced.cnf
     volumes:
       - download_data:/app/downloads
     networks:

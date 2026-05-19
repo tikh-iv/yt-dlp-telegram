@@ -1,0 +1,11 @@
+openssl_conf = openssl_init
+
+[openssl_init]
+ssl_conf = ssl_module
+
+[ssl_module]
+system_default = system_default_sect
+
+[system_default_sect]
+CipherString = ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM
+Groups = X25519:P-256

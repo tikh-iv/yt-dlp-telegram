@@ -15,6 +15,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 
+COPY openssl-reduced.cnf /etc/ssl/openssl-reduced.cnf
 COPY . .
 RUN chmod +x /app/entrypoint.sh
 
