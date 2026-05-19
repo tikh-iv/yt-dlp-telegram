@@ -18,13 +18,11 @@ services:
 
   download-service:
     image: eevarn/video-downloader-download:latest
+    network_mode: host
     environment:
-      - REDIS_HOST=redis
-      - OPENSSL_CONF=/etc/ssl/openssl-reduced.cnf
+      - REDIS_HOST=127.0.0.1
     volumes:
       - download_data:/app/downloads
-    networks:
-      - downloader
     deploy:
       restart_policy:
         condition: on-failure
