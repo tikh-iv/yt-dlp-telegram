@@ -18,14 +18,13 @@ services:
 
   download-service:
     image: eevarn/video-downloader-download:latest
-    cap_add:
-      - NET_ADMIN
     environment:
       - REDIS_HOST=redis
     volumes:
       - download_data:/app/downloads
     networks:
       - downloader
+      - internet
     deploy:
       restart_policy:
         condition: on-failure
@@ -98,3 +97,6 @@ networks:
     attachable: true
     driver_opts:
       com.docker.network.driver.mtu: "1450"
+  internet:
+    external: true
+    name: downloader-internet
