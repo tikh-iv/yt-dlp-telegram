@@ -24,10 +24,6 @@ services:
       - download_data:/app/downloads
     networks:
       - downloader
-    cap_add:
-      - NET_ADMIN
-    sysctls:
-      - net.ipv4.tcp_mtu_probing=2
     deploy:
       restart_policy:
         condition: on-failure
