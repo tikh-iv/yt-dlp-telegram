@@ -18,11 +18,12 @@ services:
 
   download-service:
     image: eevarn/video-downloader-download:latest
-    network_mode: host
     environment:
-      - REDIS_HOST=127.0.0.1
+      - REDIS_HOST=redis
     volumes:
       - download_data:/app/downloads
+    networks:
+      - downloader
     deploy:
       restart_policy:
         condition: on-failure
@@ -91,8 +92,4 @@ volumes:
 
 networks:
   downloader:
-    driver: overlay
-    attachable: true
-    driver_opts:
-      com.docker.network.driver.mtu: "1450"
-      encrypted: "false"
+    driver: bridge
