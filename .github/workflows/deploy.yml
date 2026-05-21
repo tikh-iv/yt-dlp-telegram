@@ -38,7 +38,12 @@ jobs:
               ${{ secrets.SERVERUSER }}@${{ secrets.SERVER }} << 'EOF'
               set -e
               cd ~/video-downloader
-              
+
+              # Remove old stack and stale network (clean up from previous failed deploys)
+              docker stack rm video-downloader 2>/dev/null || true
+              sleep 3
+              docker network rm video-downloader_downloader 2>/dev/null || true
+
               # Initialize Swarm if needed
               if ! docker node ls &>/dev/null; then
                 echo "Initializing Docker Swarm..."
