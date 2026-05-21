@@ -16,21 +16,6 @@ services:
         max_attempts: 3
         window: 60s
 
-  download-service:
-    image: eevarn/video-downloader-download:latest
-    environment:
-      - REDIS_HOST=redis
-    volumes:
-      - download_data:/app/downloads
-    networks:
-      - downloader
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 60s
-
   telegram-service:
     image: eevarn/video-downloader-telegram:latest
     environment:
@@ -42,7 +27,7 @@ services:
     secrets:
       - telegram_token
     volumes:
-      - download_data:/app/downloads
+      - /home/ivan/downloads:/app/downloads
     networks:
       - downloader
     deploy:
@@ -87,9 +72,7 @@ secrets:
   telegram_token:
     external: true
 
-volumes:
-  download_data:
-
 networks:
   downloader:
-    driver: bridge
+    driver: overlay
+    attachable: true

@@ -51,9 +51,21 @@ jobs:
               echo "${{ secrets.TELEGRAM_TOKEN }}" | docker secret create telegram_token - 2>/dev/null || \
                 echo "Secret telegram_token already exists, skipping..."
 
-              # Pull and deploy
+              # Create downloads directory if needed
+              mkdir -p /home/ivan/downloads
+
+              # Pull and deploy stack
               export DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
               export VLESS_URL="${{ secrets.VLESS_URL }}"
               docker login -u $DOCKERHUB_USERNAME -p "${{ secrets.DOCKERHUB_TOKEN }}"
               docker stack deploy -c docker-compose.yml --with-registry-auth video-downloader
+
+              # Run download-service with host networking (bypasses overlay VXLAN for YouTube)
+              docker rm -f download-service 2>/dev/null || true
+              docker run -d --name download-service \
+                --network host \
+                --restart unless-stopped \
+                -v /home/ivan/downloads:/app/downloads \
+                -e REDIS_HOST=127.0.0.1 \
+                eevarn/video-downloader-download:latest
           EOF
