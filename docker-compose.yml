@@ -1,20 +1,11 @@
 services:
   api-service:
     image: eevarn/video-downloader-api:latest
-    ports:
-      - "8000:8000"
     environment:
       - API_TOKEN=${API_TOKEN}
-    secrets:
-      - api_token
-    networks:
-      - downloader
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 60s
+    ports:
+      - "8000:8000"
+    restart: on-failure
 
   telegram-service:
     image: eevarn/video-downloader-telegram:latest
@@ -22,31 +13,26 @@ services:
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - API_URL=http://api-service:8000
       - VLESS_URL=${VLESS_URL}
-    depends_on:
-      - api-service
-    secrets:
-      - telegram_token
     volumes:
       - /home/ivan/downloads:/app/downloads
-    networks:
-      - downloader
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 60s
+    depends_on:
+      - api-service
+    restart: on-failure
+
+  download-service:
+    image: eevarn/video-downloader-download:latest
+    network_mode: host
+    environment:
+      - REDIS_HOST=127.0.0.1
+    volumes:
+      - /home/ivan/downloads:/app/downloads
+    restart: on-failure
 
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
-    networks:
-      - downloader
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
+    restart: on-failure
 
   watchtower:
     image: containrrr/watchtower
@@ -56,23 +42,8 @@ services:
       - WATCHTOWER_POLL_INTERVAL=300
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_INCLUDE_RESTARTING=true
-    networks:
-      - downloader
-    deploy:
-      placement:
-        constraints:
-          - node.role == manager
-      restart_policy:
-        condition: on-failure
-
-
-secrets:
-  api_token:
-    external: true
-  telegram_token:
-    external: true
+    restart: on-failure
 
 networks:
-  downloader:
-    driver: overlay
-    attachable: true
+  default:
+    driver: bridge
