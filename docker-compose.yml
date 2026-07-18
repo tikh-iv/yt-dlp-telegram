@@ -28,6 +28,15 @@ services:
       - /home/ivan/downloads:/app/downloads
     restart: on-failure
 
+  cleanup-service:
+    image: eevarn/video-downloader-cleanup:latest
+    environment:
+      - MAX_AGE_HOURS=1
+      - CLEANUP_INTERVAL_SECONDS=600
+    volumes:
+      - /home/ivan/downloads:/app/downloads
+    restart: on-failure
+
   redis:
     image: redis:alpine
     ports:
