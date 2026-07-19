@@ -2,20 +2,13 @@ from fastapi import FastAPI, HTTPException, Request, Depends
 from pydantic import BaseModel
 import redis
 import json
+import os
 import uuid
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # GET api token
-def get_api_token():
-    try:
-        with open("/run/secrets/api_token", "r") as secret_file:
-            return secret_file.read().strip()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading secret: {e}")
-
-API_TOKEN = get_api_token()
+API_TOKEN = os.getenv("API_TOKEN")
+if not API_TOKEN:
+    raise RuntimeError("API_TOKEN environment variable is not set")
 
 app = FastAPI()
 

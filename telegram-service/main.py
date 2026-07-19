@@ -4,7 +4,6 @@ import os
 import logging
 from typing import Dict
 import requests
-from fastapi import HTTPException
 
 # Настройка логирования
 logging.basicConfig(
@@ -20,17 +19,10 @@ redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=6379, db=
 _session = requests.Session()
 
 
-# Чтение токена Telegram из секрета
-def get_telegram_token() -> str:
-    try:
-        with open("/run/secrets/telegram_token", "r") as secret_file:
-            return secret_file.read().strip()
-    except Exception as e:
-        logger.error(f"Error reading Telegram token: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load Telegram token")
-
-
-TELEGRAM_TOKEN = get_telegram_token()
+# Чтение токена Telegram из переменной окружения
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+if not TELEGRAM_TOKEN:
+    raise RuntimeError("TELEGRAM_TOKEN environment variable is not set")
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 
