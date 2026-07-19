@@ -12,7 +12,6 @@ services:
     environment:
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
       - API_URL=http://api-service:8000
-      - VLESS_URL=${VLESS_URL}
     volumes:
       - /home/ivan/downloads:/app/downloads
     depends_on:

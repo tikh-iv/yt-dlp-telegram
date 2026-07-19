@@ -16,13 +16,8 @@ logger = logging.getLogger(__name__)
 # Подключение к Redis
 redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=6379, db=0)
 
-# SOCKS5 прокси для Telegram API (только если задан VLESS_URL)
+# HTTP-сессия для запросов к Telegram API
 _session = requests.Session()
-if os.getenv("VLESS_URL"):
-    _session.proxies = {"https": "socks5://127.0.0.1:1080"}
-    logger.info("VLESS proxy enabled (socks5://127.0.0.1:1080)")
-else:
-    logger.info("VLESS_URL not set, running without proxy")
 
 
 # Чтение токена Telegram из секрета

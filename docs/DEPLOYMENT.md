@@ -30,7 +30,6 @@ nano .env
 Fill in the actual values:
 - `API_TOKEN` - Your API authentication token
 - `TELEGRAM_TOKEN` - Your Telegram bot token from @BotFather
-- `VLESS_URL` - Your VLESS proxy URL
 
 ### 3. Create downloads directory
 
@@ -148,7 +147,6 @@ docker-compose up -d
 |----------|-------------|---------|
 | `API_TOKEN` | Token for API authentication | `your-secret-token` |
 | `TELEGRAM_TOKEN` | Bot token from @BotFather | `123456:ABC-DEF...` |
-| `VLESS_URL` | VLESS proxy URL for YouTube | `vless://...` |
 
 ---
 
