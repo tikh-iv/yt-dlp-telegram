@@ -6,3 +6,4 @@ cookies.txt
 config/cookies.txt
 **/cookies.txt
 __pycache__/
+config/
