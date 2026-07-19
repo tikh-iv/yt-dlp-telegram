@@ -14,6 +14,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 DOWNLOAD_DIR = "downloads"
+# Опциональные cookies для yt-dlp (обход Sign in to confirm you're not a bot).
+# Если файла нет — yt-dlp запускается без --cookies (текущее поведение).
+COOKIES_FILE = os.getenv("COOKIES_FILE", "/app/config/cookies.txt")
 MAX_FILE_SIZE_MB = 100
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024  # 50 MB в байтах
 
@@ -23,13 +26,24 @@ redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=6379, db=
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
 
+
+def cookies_args() -> List[str]:
+    """Вернуть аргументы yt-dlp для cookies, если файл существует.
+
+    Делается один log на старте, чтобы было видно в логах, используются cookies или нет.
+    Возвращает ["--cookies", path] или [].
+    """
+    if os.path.isfile(COOKIES_FILE):
+        return ["--cookies", COOKIES_FILE]
+    return []
+
 def get_formats(url: str) -> tuple[List[Dict], Optional[float]]:
     """
     Get list of formats and choose native ratio if possible.
     """
     try:
         result = subprocess.run(
-            ["yt-dlp", "--impersonate", "chrome", "--dump-json", url],
+            ["yt-dlp", "--impersonate", "chrome", "--dump-json", url, *cookies_args()],
             capture_output=True,
             text=True,
             check=True
@@ -120,7 +134,7 @@ def download_video(url: str, output_template: str, format_id: str) -> str:
     Download video.
     """
     subprocess.run(
-        ["yt-dlp", "--impersonate", "chrome", "-f", format_id, url, "-o", output_template],
+        ["yt-dlp", "--impersonate", "chrome", "-f", format_id, url, "-o", output_template, *cookies_args()],
         check=True
     )
     for file in os.listdir(DOWNLOAD_DIR):
@@ -180,7 +194,10 @@ def process_task(task_data: Dict) -> None:
         logger.error(f"Task {task_id} failed: {e}")
 
 def main():
-    logger.info("Starting download-service...")
+    if os.path.isfile(COOKIES_FILE):
+        logger.info(f"Starting download-service... (cookies: {COOKIES_FILE})")
+    else:
+        logger.info(f"Starting download-service... (no cookies file at {COOKIES_FILE})")
     while True:
         try:
             # Get task from reddis

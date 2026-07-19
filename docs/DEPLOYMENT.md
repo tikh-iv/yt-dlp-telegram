@@ -43,6 +43,29 @@ mkdir -p /home/ivan/downloads
 docker-compose up -d
 ```
 
+### 5. (Optional) Add YouTube cookies
+
+Some YouTube videos require Sign in to download (error: `Sign in to confirm you're not a bot`). To support them, export cookies from a logged-in browser and place them on the server — yt-dlp will pick them up automatically; if the file is absent, the bot works without cookies.
+
+```bash
+# Create config dir next to docker-compose.yml
+mkdir -p config
+
+# Export cookies from Chrome/Firefox via extension
+# "Get cookies.txt LOCALLY" → save as config/cookies.txt
+
+# Apply without restart (read-only mount picks up new file on next yt-dlp call):
+ls config/cookies.txt
+```
+
+Restart download-service to make the new cookies appear in logs:
+
+```bash
+docker compose restart download-service
+docker compose logs --tail=5 download-service
+# should print: "Starting download-service... (cookies: /app/config/cookies.txt)"
+```
+
 ---
 
 ## How Updates Work

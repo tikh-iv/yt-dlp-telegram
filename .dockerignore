@@ -1,0 +1,15 @@
+# Никогда не запекать секреты в образ Docker
+.env
+**/cookies.txt
+config/
+
+# Прочее
+.venv/
+.git/
+.idea/
+docs/plans/
+zcode/
+.claude/
+.zcode/
+*.md
+!readme.md

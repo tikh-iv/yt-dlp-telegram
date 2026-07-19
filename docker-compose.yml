@@ -15,6 +15,7 @@ services:
       - REDIS_HOST=redis
     volumes:
       - downloads:/app/downloads
+      - ./config:/app/config:ro
     depends_on:
       - redis
     restart: on-failure
