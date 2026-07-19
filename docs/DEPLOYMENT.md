@@ -87,6 +87,47 @@ docker compose up -d
 docker compose logs --tail=20 download-service  # yt-dlp output should be here
 ```
 
+### 7. PO Token provider (bgutil) — required for YouTube since 2025-2026
+
+YouTube now requires a **PO Token** (Proof-of-Origin) in addition to cookies. Without it, even valid cookies get rejected with `playability status: LOGIN_REQUIRED` → `Sign in to confirm you're not a bot`. Cookies alone no longer help.
+
+This stack ships a [bgutil-ytdlp-pot-provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider) sidecar that generates PO Tokens on demand. yt-dlp calls it automatically via the `bgutil-ytdlp-pot-provider` plugin baked into the `download-service` image.
+
+Components:
+
+| Where | What |
+|---|---|
+| `docker-compose.yml` service `potoken-service` | `brainicism/bgutil-ytdlp-pot-provider:1.3.1` — token server (port 4416) |
+| `download-service/Dockerfile` | `pip install bgutil-ytdlp-pot-provider==1.3.1` — yt-dlp plugin |
+| `download-service/main.py` `potoken_args()` | passes `--extractor-args youtubepot-bgutilhttp:base_url=http://potoken-service:4416` to every yt-dlp call |
+
+#### Why pinned to 1.3.1
+
+The plugin inside `download-service` and the `potoken-service` server **must share the same major version** — otherwise the plugin silently refuses to talk to the server and PO Token generation fails. Both are pinned to `1.3.1`. Watchtower will NOT auto-bump (pinned tag); bump manually in both places together when you want a new release.
+
+#### Verify it works
+
+```bash
+# 1. Provider container is up
+docker compose ps potoken-service
+
+# 2. Plugin is loaded and registered as a provider
+docker compose exec download-service yt-dlp -v --simulate "https://www.youtube.com/watch?v=dQw4w9WgXcQ" 2>&1 | grep "PO Token Providers"
+# expect: [debug] [youtube] [pot] PO Token Providers: bgutil:http-1.3.1 (external), ...
+
+# 3. Startup log
+docker compose logs --tail=10 download-service | grep potoken
+# expect: Starting download-service... (potoken provider: http://potoken-service:4416)
+```
+
+#### Disable PO Token (optional)
+
+Set `POTOKEN_URL=` (empty) in `download-service` env, or remove the env var. `potoken_args()` returns `[]` when the URL is empty, so yt-dlp runs without `--extractor-args`.
+
+#### Caveat
+
+A PO Token does **not** guarantee bypassing bot detection. If the server's IP is heavily flagged, you may additionally need cookies or an egress proxy. See [yt-dlp PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#po-token-guide).
+
 ---
 
 ## How Updates Work
@@ -191,6 +232,9 @@ docker-compose up -d
 |----------|-------------|---------|
 | `API_TOKEN` | Token for API authentication | `your-secret-token` |
 | `TELEGRAM_TOKEN` | Bot token from @BotFather | `123456:ABC-DEF...` |
+| `POTOKEN_URL` | bgutil PO Token provider URL (set in compose, not `.env`) | `http://potoken-service:4416` |
+| `REDIS_HOST` | Redis hostname for service name resolution | `redis` |
+| `COOKIES_FILE` | Path to yt-dlp cookies file (writable) | `/app/cookies/cookies.txt` |
 
 ---
 
@@ -201,9 +245,11 @@ docker-compose up -d
 - Scheduled: Every Monday 04:00 UTC
 
 **What it does:**
-1. Builds 3 Docker images (api, download, telegram)
+1. Builds 4 Docker images (api, download, telegram, cleanup)
 2. Pushes to Docker Hub
 3. Watchtower picks up changes within 5 minutes
+
+> Note: the `potoken-service` uses a prebuilt public image (`brainicism/bgutil-ytdlp-pot-provider:1.3.1`) — it is **not** built by this workflow. Watchtower will not auto-update it because the tag is pinned.
 
 **What it does NOT do:**
 - Does NOT SSH to your server

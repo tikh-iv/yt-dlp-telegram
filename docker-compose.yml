@@ -13,11 +13,23 @@ services:
     image: eevarn/video-downloader-download:latest
     environment:
       - REDIS_HOST=redis
+      - POTOKEN_URL=http://potoken-service:4416
     volumes:
       - downloads:/app/downloads
       - ./config:/app/config:ro
     depends_on:
       - redis
+      - potoken-service
+    restart: on-failure
+
+  # bgutil PO Token provider — генерирует PO Token для yt-dlp,
+  # чтобы обойти YouTube "Sign in to confirm you're not a bot".
+  # Plugin внутри download-service сам стучится к этому сервису.
+  # Тег pinned (1.3.1): major версия plugin в download-service и server должны совпадать.
+  potoken-service:
+    image: brainicism/bgutil-ytdlp-pot-provider:1.3.1
+    container_name: bgutil-pot-provider
+    init: true
     restart: on-failure
 
   telegram-service:

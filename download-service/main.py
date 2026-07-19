@@ -23,6 +23,12 @@ DOWNLOAD_DIR = "downloads"
 # Поэтому entrypoint.sh копирует /app/config/cookies.txt (read-only с хоста)
 # в /app/cookies/cookies.txt (writable слой контейнера).
 COOKIES_FILE = os.getenv("COOKIES_FILE", "/app/cookies/cookies.txt")
+# URL bgutil PO Token provider (сервис potoken-service в docker-compose).
+# PO Token нужен YouTube с 2025-2026 — без него даже с валидными cookies
+# видео возвращают LOGIN_REQUIRED ("Sign in to confirm you're not a bot").
+# Plugin (bgutil-ytdlp-pot-provider, ставится в Dockerfile) сам стучится к этому URL.
+# Пустое значение отключает PO Token.
+POTOKEN_URL = os.getenv("POTOKEN_URL", "http://potoken-service:4416")
 MAX_FILE_SIZE_MB = 100
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024  # 50 MB в байтах
 
@@ -43,13 +49,24 @@ def cookies_args() -> List[str]:
         return ["--cookies", COOKIES_FILE]
     return []
 
+def potoken_args() -> List[str]:
+    """Вернуть аргументы yt-dlp для bgutil PO Token provider, если URL задан.
+
+    Namespace именно `youtubepot-bgutilhttp` (не `youtube`) — это сам plugin,
+    а не youtube extractor. base_url указывает на potoken-service.
+    При пустом POTOKEN_URL возвращает [] (PO Token выключен).
+    """
+    if POTOKEN_URL:
+        return ["--extractor-args", f"youtubepot-bgutilhttp:base_url={POTOKEN_URL}"]
+    return []
+
 def get_formats(url: str) -> tuple[List[Dict], Optional[float]]:
     """
     Get list of formats and choose native ratio if possible.
     """
     try:
         result = subprocess.run(
-            ["yt-dlp", "--impersonate", "chrome", "--dump-json", url, *cookies_args()],
+            ["yt-dlp", "--impersonate", "chrome", "--dump-json", url, *cookies_args(), *potoken_args()],
             capture_output=True,
             text=True,
             check=True
@@ -140,7 +157,7 @@ def download_video(url: str, output_template: str, format_id: str) -> str:
     Download video.
     """
     subprocess.run(
-        ["yt-dlp", "--impersonate", "chrome", "-f", format_id, url, "-o", output_template, *cookies_args()],
+        ["yt-dlp", "--impersonate", "chrome", "-f", format_id, url, "-o", output_template, *cookies_args(), *potoken_args()],
         check=True
     )
     for file in os.listdir(DOWNLOAD_DIR):
@@ -204,6 +221,10 @@ def main():
         logger.info(f"Starting download-service... (cookies: {COOKIES_FILE})")
     else:
         logger.info(f"Starting download-service... (no cookies file at {COOKIES_FILE})")
+    if POTOKEN_URL:
+        logger.info(f"Starting download-service... (potoken provider: {POTOKEN_URL})")
+    else:
+        logger.info(f"Starting download-service... (no potoken provider)")
     while True:
         try:
             # Get task from reddis

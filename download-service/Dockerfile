@@ -31,6 +31,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# bgutil PO Token provider plugin — для обхода YouTube "Sign in to confirm you're not a bot".
+# Pinned: major версия plugin ДОЛЖНА совпадать с major версией potoken-service
+# (brainicism/bgutil-ytdlp-pot-provider:1.3.1 в docker-compose.yml). При рассинхроне
+# plugin молча откажется общаться с сервером. См. https://github.com/yt-dlp/yt-dlp/wiki/Extractors#po-token-guide
+RUN pip install --no-cache-dir bgutil-ytdlp-pot-provider==1.3.1
+
 COPY openssl-reduced.cnf /etc/ssl/openssl-reduced.cnf
 COPY . .
 RUN chmod +x /app/entrypoint.sh
