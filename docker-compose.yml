@@ -5,26 +5,28 @@ services:
       - API_TOKEN=${API_TOKEN}
     ports:
       - "8000:8000"
+    depends_on:
+      - redis
+    restart: on-failure
+
+  download-service:
+    image: eevarn/video-downloader-download:latest
+    environment:
+      - REDIS_HOST=redis
+    volumes:
+      - downloads:/app/downloads
+    depends_on:
+      - redis
     restart: on-failure
 
   telegram-service:
     image: eevarn/video-downloader-telegram:latest
     environment:
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
-      - API_URL=http://api-service:8000
     volumes:
-      - /home/ivan/downloads:/app/downloads
+      - downloads:/app/downloads
     depends_on:
-      - api-service
-    restart: on-failure
-
-  download-service:
-    image: eevarn/video-downloader-download:latest
-    network_mode: host
-    environment:
-      - REDIS_HOST=127.0.0.1
-    volumes:
-      - /home/ivan/downloads:/app/downloads
+      - redis
     restart: on-failure
 
   cleanup-service:
@@ -33,13 +35,11 @@ services:
       - MAX_AGE_HOURS=1
       - CLEANUP_INTERVAL_SECONDS=600
     volumes:
-      - /home/ivan/downloads:/app/downloads
+      - downloads:/app/downloads
     restart: on-failure
 
   redis:
     image: redis:alpine
-    ports:
-      - "6379:6379"
     restart: on-failure
 
   watchtower:
@@ -52,6 +52,5 @@ services:
       - WATCHTOWER_INCLUDE_RESTARTING=true
     restart: on-failure
 
-networks:
-  default:
-    driver: bridge
+volumes:
+  downloads:
