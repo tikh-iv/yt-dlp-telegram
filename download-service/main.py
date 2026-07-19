@@ -16,7 +16,13 @@ logger = logging.getLogger(__name__)
 DOWNLOAD_DIR = "downloads"
 # Опциональные cookies для yt-dlp (обход Sign in to confirm you're not a bot).
 # Если файла нет — yt-dlp запускается без --cookies (текущее поведение).
-COOKIES_FILE = os.getenv("COOKIES_FILE", "/app/config/cookies.txt")
+#
+# Путь должен быть writable: yt-dlp при завершении сохраняет сессию обратно
+# в этот файл (cookies.save). Read-only маунт config:/app/config:ro ломает это
+# с OSError [Errno 30] Read-only file system.
+# Поэтому entrypoint.sh копирует /app/config/cookies.txt (read-only с хоста)
+# в /app/cookies/cookies.txt (writable слой контейнера).
+COOKIES_FILE = os.getenv("COOKIES_FILE", "/app/cookies/cookies.txt")
 MAX_FILE_SIZE_MB = 100
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024  # 50 MB в байтах
 

@@ -54,7 +54,6 @@ mkdir -p config
 # Export cookies from Chrome/Firefox via extension
 # "Get cookies.txt LOCALLY" → save as config/cookies.txt
 
-# Apply without restart (read-only mount picks up new file on next yt-dlp call):
 ls config/cookies.txt
 ```
 
@@ -63,7 +62,29 @@ Restart download-service to make the new cookies appear in logs:
 ```bash
 docker compose restart download-service
 docker compose logs --tail=5 download-service
-# should print: "Starting download-service... (cookies: /app/config/cookies.txt)"
+# should print: "Starting download-service... (cookies: /app/cookies/cookies.txt)"
+```
+
+#### How the read-only cookies.txt is handled
+
+`docker-compose.yml` mounts `./config` into the container **read-only** (`./config:/app/config:ro`) — the cookies file is a secret and the container must not modify it. But yt-dlp writes the session cookies back to the file it read from at the end of each run (`--cookies FILE` → `cookies.save`), which used to fail with:
+
+```
+OSError: [Errno 30] Read-only file system: '/app/config/cookies.txt'
+```
+
+`download-service/entrypoint.sh` now copies `/app/config/cookies.txt` (read-only, from the host) into `/app/cookies/cookies.txt` (a writable container-local path) on every container start. `download-service/main.py` then points `--cookies` at that writable copy. Result: yt-dlp can save its session to the writable copy, while the secret on the host stays untouched.
+
+So after changing `config/cookies.txt`, **restart `download-service`** so the entrypoint re-copies the file.
+
+### 6. Make sure yt-dlp runs in `download-service`, not `telegram-service`
+
+If your `docker compose logs telegram-service` shows yt-dlp tracebacks, you are running an outdated image: the download logic was refactored out of `telegram-service` into `download-service`. On a correct setup, only `download-service` invokes yt-dlp.
+
+```bash
+docker compose pull
+docker compose up -d
+docker compose logs --tail=20 download-service  # yt-dlp output should be here
 ```
 
 ---
