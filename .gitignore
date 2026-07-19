@@ -4,4 +4,4 @@
 # Cookies — секрет, никогда не в репозиторий
 cookies.txt
 config/cookies.txt
-**/cookies.txt
+**/cookies.txt__pycache__/
