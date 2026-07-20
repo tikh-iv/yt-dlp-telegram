@@ -4,7 +4,7 @@ import subprocess
 import os
 import uuid
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 # Настройка логирования
 logging.basicConfig(
@@ -60,108 +60,35 @@ def potoken_args() -> List[str]:
         return ["--extractor-args", f"youtubepot-bgutilhttp:base_url={POTOKEN_URL}"]
     return []
 
-def get_formats(url: str) -> tuple[List[Dict], Optional[float]]:
-    """
-    Get list of formats and choose native ratio if possible.
-    """
-    try:
-        result = subprocess.run(
-            ["yt-dlp", "--impersonate", "chrome", "--dump-json", url, *cookies_args(), *potoken_args()],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        video_info = json.loads(result.stdout)
-        formats = video_info.get("formats", [])
-        # Get ratio if possible
-        original_aspect_ratio = video_info.get("aspect_ratio")
-        if original_aspect_ratio is None:
-            # If there is no aspect_ratio try to get from width/height
-            width = video_info.get("width")
-            height = video_info.get("height")
-            if width and height:
-                original_aspect_ratio = width / height
-        combined_formats = [
-            fmt for fmt in formats
-            if fmt.get("vcodec") != "none" and fmt.get("acodec") != "none"
-        ]
-        return combined_formats, original_aspect_ratio
-    except subprocess.CalledProcessError as e:
-        raise Exception(f"Failed to retrieve formats: {e.stderr}")
-    except Exception as e:
-        raise Exception(f"Error in get_formats: {str(e)}")
+def download_video(url: str, output_template: str) -> str:
+    """Скачать видео через yt-dlp с нативным формат-селектором.
 
-def select_best_format_under_size(formats: List[Dict], original_aspect_ratio: Optional[float] = None, max_size_bytes: int = MAX_FILE_SIZE_BYTES) -> str:
-    """
-    Choose best format to download.
-    """
-    def get_format_aspect_ratio(fmt: Dict) -> float:
-        aspect_ratio = fmt.get("aspect_ratio")
-        if aspect_ratio is not None:
-            return aspect_ratio
-        width = fmt.get("width")
-        height = fmt.get("height")
-        if width and height:
-            return width / height
-        # If no data choose 16:9
-        return 16 / 9
+    Раньше выбор формата делался в Python (get_formats + select_best_format_under_size),
+    но это ломалось на DASH-источниках (Instagram/YouTube): фильтр `vcodec != none
+    AND acodec != none` выбрасывал все современные video-only DASH-форматы, и бот
+    падал на fallback к CDN-ссылкам с `unknown` кодеком/разрешением — оттуда
+    квадратные/растянутые ролики.
 
-    # 1 filter files by size
-    suitable_formats = [
-        fmt for fmt in formats
-        if fmt.get("filesize") is not None and fmt["filesize"] <= max_size_bytes
-    ]
-
-    if suitable_formats:
-        # 2 if there is original ratio sort by it
-        if original_aspect_ratio is not None:
-            suitable_formats.sort(
-                key=lambda x: (
-                    # close to original ratio is better
-                    abs(get_format_aspect_ratio(x) - original_aspect_ratio),
-                    # than bitrate and quality
-                    -(x.get("height") or 0),
-                    -(x.get("tbr") or 0)
-                )
-            )
-        else:
-            # if there is no original ratio sort by bitrate and quality
-            suitable_formats.sort(
-                key=lambda x: (
-                    -(x.get("height") or 0),
-                    -(x.get("tbr") or 0)
-                )
-            )
-        return suitable_formats[0]["format_id"]
-    else:
-        # Шаг 3: Fallback — known formats
-        formats_with_size = [fmt for fmt in formats if fmt.get("filesize") is not None]
-        if formats_with_size:
-            # sort by size
-            if original_aspect_ratio is not None:
-                formats_with_size.sort(
-                    key=lambda x: (
-                        abs(get_format_aspect_ratio(x) - original_aspect_ratio),
-                        x["filesize"]
-                    )
-                )
-            else:
-                formats_with_size.sort(key=lambda x: x["filesize"])
-            return formats_with_size[0]["format_id"]
-        # 4 last fallback minimal ratio
-        formats.sort(key=lambda x: (x.get("height") or 0))
-        return formats[0]["format_id"]
-
-def download_video(url: str, output_template: str, format_id: str) -> str:
+    Теперь селектор формата полностью delegируем yt-dlp:
+      - `bestvideo*+bestaudio/best` — лучший видеоформат (включая DASH video-only)
+        склеивается с лучшим аудио через ffmpeg; если склейка невозможна — берётся
+        лучший combined-формат.
+      - Ограничение по размеру: yt-dlp сам отсечёт форматы тяжелее MAX_FILE_SIZE_BYTES
+        через `[filesize<...]`. Размер склеенного файла проверим ещё раз после
+        загрузки (см. process_task).
     """
-    Download video.
-    """
+    size_filter = f"[filesize<{MAX_FILE_SIZE_BYTES}]"
+    format_spec = f"bestvideo*{size_filter}+bestaudio{size_filter}/best{size_filter}/best"
     subprocess.run(
-        ["yt-dlp", "--impersonate", "chrome", "-f", format_id, url, "-o", output_template, *cookies_args(), *potoken_args()],
-        check=True
+        ["yt-dlp", "--impersonate", "chrome", "-f", format_spec, url, "-o", output_template,
+         *cookies_args(), *potoken_args()],
+        check=True,
+        capture_output=True,
+        text=True,
     )
+    unique_id = os.path.basename(output_template).split(".")[0]
     for file in os.listdir(DOWNLOAD_DIR):
-        if file.startswith(os.path.basename(output_template).split(".")[0]):
+        if file.startswith(unique_id):
             return os.path.join(DOWNLOAD_DIR, file)
     raise Exception("Downloaded file not found")
 
@@ -176,20 +103,15 @@ def process_task(task_data: Dict) -> None:
     logger.info(f"Processing task {task_id} for URL: {url}")
 
     try:
-        # Get formats and original ratio
-        formats, original_aspect_ratio = get_formats(url)
-        if not formats:
-            raise Exception("No suitable formats found")
-
-        # Choose the best
-        best_format_id = select_best_format_under_size(formats, original_aspect_ratio)
         unique_id = str(uuid.uuid4())
         output_template = f"{DOWNLOAD_DIR}/{unique_id}.%(ext)s"
 
-        # Download video
-        file_path = download_video(url, output_template, best_format_id)
+        # Download video (yt-dlp сам выбирает лучший формат под размер)
+        file_path = download_video(url, output_template)
 
-        # Choose the size
+        # Проверяем размер уже после скачивания: yt-dlp-овский [filesize<...]
+        # фильтрует только форматы с известным filesize, но для склеенных
+        # DASH (video+audio) размер заранее неизвестен — проверим итог.
         file_size = os.path.getsize(file_path)
         if file_size > MAX_FILE_SIZE_BYTES:
             os.remove(file_path)
