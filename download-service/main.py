@@ -73,12 +73,11 @@ def download_video(url: str, output_template: str) -> str:
       - `bestvideo*+bestaudio/best` — лучший видеоформат (включая DASH video-only)
         склеивается с лучшим аудио через ffmpeg; если склейка невозможна — берётся
         лучший combined-формат.
-      - Ограничение по размеру: yt-dlp сам отсечёт форматы тяжелее MAX_FILE_SIZE_BYTES
-        через `[filesize<...]`. Размер склеенного файла проверим ещё раз после
-        загрузки (см. process_task).
+      - Ограничение по размеру НЕ делаем в селекторе через [filesize<...]: у DASH-
+        форматов filesize заранее неизвестен (None), и фильтр отбросит их так же,
+        как старый Python-код. Размер проверяем post-download в process_task.
     """
-    size_filter = f"[filesize<{MAX_FILE_SIZE_BYTES}]"
-    format_spec = f"bestvideo*{size_filter}+bestaudio{size_filter}/best{size_filter}/best"
+    format_spec = "bestvideo*+bestaudio/best"
     subprocess.run(
         ["yt-dlp", "--impersonate", "chrome", "-f", format_spec, url, "-o", output_template,
          *cookies_args(), *potoken_args()],
