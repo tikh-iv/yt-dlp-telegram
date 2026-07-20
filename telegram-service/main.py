@@ -39,16 +39,26 @@ def send_message(chat_id: str, text: str) -> None:
         raise
 
 
-def send_video(chat_id: str, video_path: str) -> None:
+def send_video(chat_id: str, video_path: str, width: int = None, height: int = None, duration: int = None) -> None:
+    # width/height/duration нужно передавать явно: без них Telegram часто
+    # определяет вертикальные видео как квадрат 320x320 с duration=0, из-за
+    # чего видео не воспроизводится (показывается только превью).
+    # Метаданные извлекает download-service через ffprobe и кладёт в Redis.
+    data = {"chat_id": chat_id}
+    if width and height:
+        data["width"] = str(width)
+        data["height"] = str(height)
+    if duration:
+        data["duration"] = str(duration)
     try:
         with open(video_path, "rb") as video_file:
             response = _session.post(
                 f"{TELEGRAM_API_URL}/sendVideo",
-                data={"chat_id": chat_id},
+                data=data,
                 files={"video": video_file}
             )
             response.raise_for_status()
-        logger.info(f"Video sent to chat {chat_id}: {video_path}")
+        logger.info(f"Video sent to chat {chat_id}: {video_path} ({width}x{height}, {duration}s)")
     except requests.RequestException as e:
         logger.error(f"Failed to send video to chat {chat_id}: {e}")
         raise
@@ -71,8 +81,14 @@ def process_result(result: Dict) -> None:
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"Video file not found: {file_path}")
 
-            # Отправить видео
-            send_video(chat_id, file_path)
+            # Отправить видео (с метаданными из ffprobe — иначе Telegram
+            # ломает aspect ratio и duration для вертикальных видео).
+            send_video(
+                chat_id, file_path,
+                width=result.get("width"),
+                height=result.get("height"),
+                duration=result.get("duration"),
+            )
 
             # Удалить файл после отправки
             os.remove(file_path)

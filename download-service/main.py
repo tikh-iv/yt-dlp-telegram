@@ -89,6 +89,32 @@ def download_video(url: str, output_template: str) -> str:
             return os.path.join(DOWNLOAD_DIR, file)
     raise Exception("Downloaded file not found")
 
+def probe_video_meta(file_path: str) -> Dict:
+    """Извлечь width/height/duration видео через ffprobe.
+
+    Возвращает {} при ошибке — отправка в Telegram продолжится без метаданных
+    ( Telegram сам попробует определить, как сейчас).
+    """
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error",
+             "-select_streams", "v:0",
+             "-show_entries", "stream=width,height:format=duration",
+             "-of", "json", file_path],
+            capture_output=True, text=True, timeout=15, check=True,
+        )
+        data = json.loads(result.stdout)
+        stream = (data.get("streams") or [{}])[0]
+        fmt = data.get("format") or {}
+        return {
+            "width": int(stream["width"]) if stream.get("width") else None,
+            "height": int(stream["height"]) if stream.get("height") else None,
+            "duration": int(float(fmt["duration"])) if fmt.get("duration") else None,
+        }
+    except Exception as e:
+        logger.warning(f"ffprobe failed for {file_path}: {e}")
+        return {}
+
 def process_task(task_data: Dict) -> None:
     """
     Get task from Redis
@@ -114,27 +140,28 @@ def process_task(task_data: Dict) -> None:
             os.remove(file_path)
             raise Exception(f"File size {file_size / (1024 * 1024):.2f} MB exceeds {MAX_FILE_SIZE_MB} MB")
 
-        # DEBUG: выводим метаданные файла в лог, чтобы понять что отправляется
-        try:
-            probe = subprocess.run(
-                ["ffprobe", "-v", "error", "-select_streams", "v:0",
-                 "-show_entries", "stream=codec_name,width,height,nb_frames,r_frame_rate,duration",
-                 "-of", "default=noprint_wrappers=1", file_path],
-                capture_output=True, text=True, timeout=10,
-            )
-            logger.info(f"DEBUG file metadata for {task_id}:\n{probe.stdout.strip()}")
-        except Exception as e:
-            logger.warning(f"DEBUG ffprobe failed: {e}")
+        # Извлекаем метаданные для Telegram sendVideo.
+        # Без явных width/height/duration Telegram часто промахивается с aspect
+        # ratio (показывает вертикальное видео квадратным 320x320) и duration=0
+        # (видео не воспроизводится, только превью). Передаём их через Redis.
+        video_meta = probe_video_meta(file_path)
 
         # Send result to redis
         result = {
             "task_id": task_id,
             "chat_id": chat_id,
             "status": "completed",
-            "file_path": file_path
+            "file_path": file_path,
+            "width": video_meta.get("width"),
+            "height": video_meta.get("height"),
+            "duration": video_meta.get("duration"),
         }
         redis_client.rpush("download_results", json.dumps(result))
-        logger.info(f"Task {task_id} completed successfully")
+        logger.info(
+            f"Task {task_id} completed: {file_path} "
+            f"({video_meta.get('width')}x{video_meta.get('height')}, "
+            f"{video_meta.get('duration')}s)"
+        )
 
     except Exception as e:
         # Send errorr message
