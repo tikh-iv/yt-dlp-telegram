@@ -82,8 +82,6 @@ def download_video(url: str, output_template: str) -> str:
         ["yt-dlp", "--impersonate", "chrome", "-f", format_spec, url, "-o", output_template,
          *cookies_args(), *potoken_args()],
         check=True,
-        capture_output=True,
-        text=True,
     )
     unique_id = os.path.basename(output_template).split(".")[0]
     for file in os.listdir(DOWNLOAD_DIR):
@@ -115,6 +113,18 @@ def process_task(task_data: Dict) -> None:
         if file_size > MAX_FILE_SIZE_BYTES:
             os.remove(file_path)
             raise Exception(f"File size {file_size / (1024 * 1024):.2f} MB exceeds {MAX_FILE_SIZE_MB} MB")
+
+        # DEBUG: выводим метаданные файла в лог, чтобы понять что отправляется
+        try:
+            probe = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0",
+                 "-show_entries", "stream=codec_name,width,height,nb_frames,r_frame_rate,duration",
+                 "-of", "default=noprint_wrappers=1", file_path],
+                capture_output=True, text=True, timeout=10,
+            )
+            logger.info(f"DEBUG file metadata for {task_id}:\n{probe.stdout.strip()}")
+        except Exception as e:
+            logger.warning(f"DEBUG ffprobe failed: {e}")
 
         # Send result to redis
         result = {
