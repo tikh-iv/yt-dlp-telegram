@@ -61,33 +61,98 @@ def potoken_args() -> List[str]:
     return []
 
 def download_video(url: str, output_template: str) -> str:
-    """Скачать видео через yt-dlp с нативным формат-селектором.
+    """Скачать видео через yt-dlp и вернуть путь к mp4 с H.264 + AAC.
 
-    Раньше выбор формата делался в Python (get_formats + select_best_format_under_size),
-    но это ломалось на DASH-источниках (Instagram/YouTube): фильтр `vcodec != none
-    AND acodec != none` выбрасывал все современные video-only DASH-форматы, и бот
-    падал на fallback к CDN-ссылкам с `unknown` кодеком/разрешением — оттуда
-    квадратные/растянутые ролики.
+    Стратегия — получить файл, который Telegram примет как видео (не как документ):
+    Telegram Bot API надёжно проигрывает только MP4 с H.264 видео и AAC аудио.
+    Любые другие комбинации (VP9/AV1 + Opus в webm/mp4) он отправляет как файл.
 
-    Теперь селектор формата полностью delegируем yt-dlp:
-      - `bestvideo*+bestaudio/best` — лучший видеоформат (включая DASH video-only)
-        склеивается с лучшим аудио через ffmpeg; если склейка невозможна — берётся
-        лучший combined-формат.
-      - Ограничение по размеру НЕ делаем в селекторе через [filesize<...]: у DASH-
-        форматов filesize заранее неизвестен (None), и фильтр отбросит их так же,
-        как старый Python-код. Размер проверяем post-download в process_task.
+    1) Селектор предпочитает H.264+AAC форматы — на YouTube/X/TikTok они есть,
+       файл скачивается сразу в нужном виде, без перекодировки.
+    2) Если источник отдаёт только не-H.264 (Instagram — только VP9),
+       селектор берёт лучший доступный, а после скачивания мы транскодируем
+       его в H.264+AAC через ffmpeg. Это медленнее (~10-30с на короткий ролик),
+       но иначе Telegram не покажет видео.
+
+    Ограничение по размеру НЕ в селекторе: у DASH-форматов filesize=None заранее,
+    фильтр [filesize<...] их отбросит (старый баг). Проверяем post-download.
     """
-    format_spec = "bestvideo*+bestaudio/best"
+    # Сначала пытаемся взять H.264+AAC напрямую; fallback — любой лучший.
+    format_spec = "bestvideo*[vcodec^=avc]+bestaudio[acodec^=mp4a]/best"
     subprocess.run(
         ["yt-dlp", "--impersonate", "chrome", "-f", format_spec, url, "-o", output_template,
          *cookies_args(), *potoken_args()],
         check=True,
     )
     unique_id = os.path.basename(output_template).split(".")[0]
+    downloaded = None
     for file in os.listdir(DOWNLOAD_DIR):
         if file.startswith(unique_id):
-            return os.path.join(DOWNLOAD_DIR, file)
-    raise Exception("Downloaded file not found")
+            downloaded = os.path.join(DOWNLOAD_DIR, file)
+            break
+    if not downloaded:
+        raise Exception("Downloaded file not found")
+
+    # Если файл уже в нужном формате (H.264+AAC) — отдаём как есть.
+    if is_telegram_friendly_mp4(downloaded):
+        return downloaded
+
+    # Иначе транскодируем в H.264+AAC mp4. Старый файл удаляем.
+    logger.info(f"Transcoding to H.264+AAC mp4 (source: {downloaded})")
+    target = downloaded.rsplit(".", 1)[0] + ".mp4"
+    # Если source уже .mp4 (но с vp9/av1 внутри), пишем в temp, потом заменяем.
+    if os.path.exists(target) and os.path.samefile(target, downloaded):
+        target = downloaded + ".h264.mp4"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", downloaded,
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+         "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-b:a", "128k",
+         "-movflags", "+faststart",
+         target],
+        check=True, capture_output=True,
+    )
+    if target != downloaded:
+        os.remove(downloaded)
+    # Нормализуем имя: .h264.mp4 → .mp4
+    if target.endswith(".h264.mp4"):
+        final = target.replace(".h264.mp4", ".mp4")
+        os.rename(target, final)
+        target = final
+    return target
+
+def is_telegram_friendly_mp4(file_path: str) -> bool:
+    """True, если файл — mp4 с H.264 видео и AAC аудио (Telegram играет как видео)."""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error",
+             "-select_streams", "v:0",
+             "-show_entries", "stream=codec_name:format=format_name",
+             "-of", "json", file_path],
+            capture_output=True, text=True, timeout=15, check=True,
+        )
+        data = json.loads(result.stdout)
+        stream = (data.get("streams") or [{}])[0]
+        fmt_name = data.get("format", {}).get("format_name", "")
+        vcodec = (stream.get("codec_name") or "").lower()
+        # format_name может быть "mov,mp4,m4a,..."; нас интересует наличие mp4
+        is_mp4 = "mp4" in fmt_name or "mov" in fmt_name
+        if not is_mp4 or vcodec not in ("h264", "avc"):
+            return False
+        # Проверяем аудио-кодек (если аудио есть)
+        aresult = subprocess.run(
+            ["ffprobe", "-v", "error",
+             "-select_streams", "a:0",
+             "-show_entries", "stream=codec_name",
+             "-of", "default=noprint_wrappers=1:nokey=1", file_path],
+            capture_output=True, text=True, timeout=15, check=True,
+        )
+        acodec = (aresult.stdout or "").strip().lower()
+        # Если аудио нет — это всё ещё OK (беззвучное видео). Если есть — должно быть AAC.
+        return not acodec or acodec in ("aac", "mp4a")
+    except Exception as e:
+        logger.warning(f"is_telegram_friendly_mp4 probe failed for {file_path}: {e}")
+        return False
 
 def probe_video_meta(file_path: str) -> Dict:
     """Извлечь width/height/duration видео через ffprobe.
